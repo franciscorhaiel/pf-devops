@@ -1,0 +1,68 @@
+# Apaga los workloads del namespace fuera del horario laboral.
+# FinOps: en entornos de prueba esto ahorra ~70% del costo de compute.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-downscaler
+  namespace: pf-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kube-downscaler
+  namespace: pf-app
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kube-downscaler
+  namespace: pf-app
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kube-downscaler
+subjects:
+  - kind: ServiceAccount
+    name: kube-downscaler
+    namespace: pf-app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-downscaler
+  namespace: pf-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: kube-downscaler }
+  template:
+    metadata:
+      labels: { app: kube-downscaler }
+    spec:
+      serviceAccountName: kube-downscaler
+      containers:
+        - name: downscaler
+          image: ghcr.io/caas-team/py-kube-downscaler:24.8.0
+          args:
+            - --namespace=pf-app
+            - --interval=60
+            # Ventana de encendido: lunes a viernes, 8 a 20, hora Argentina
+            - --default-uptime=Mon-Fri 08:00-20:00 America/Argentina/Buenos_Aires
+            # Nunca apagar el propio downscaler ni el ingress
+            - --exclude-deployments=kube-downscaler
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits:   { cpu: 50m, memory: 128Mi }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
