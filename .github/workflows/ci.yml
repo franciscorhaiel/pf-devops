@@ -68,6 +68,7 @@ jobs:
           bandit -r app -x app/tests -f sarif -o bandit.sarif || true
 
       - name: Subir resultados de Bandit
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: bandit.sarif
@@ -109,6 +110,7 @@ jobs:
           output_file_path: console,checkov.sarif
 
       - name: Subir resultados de Checkov
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: checkov.sarif
@@ -183,7 +185,7 @@ jobs:
 
       # Trivy: CVEs en la imagen final
       - name: Trivy (escaneo de imagen)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: pf:runtime
           format: sarif
@@ -192,6 +194,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Subir resultados de Trivy
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy.sarif
