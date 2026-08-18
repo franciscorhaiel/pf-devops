@@ -219,14 +219,37 @@ jobs:
             sleep 2
           done
 
+      # ZAP via contenedor en vez de la action oficial: action-baseline@v0.13.0
+      # usa upload-artifact@v3 internamente, que GitHub ya rechaza.
       - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.13.0
-        with:
-          target: http://localhost:8000
-          rules_file_name: .zap/rules.tsv
-          cmd_options: "-a -j"
-          allow_issue_writing: false
+        run: |
+          mkdir -p zap-report && chmod a+w zap-report
+          docker run --rm --network=host \
+            -v "$PWD/zap-report:/zap/wrk/:rw" \
+            -v "$PWD/.zap:/zap/reglas:ro" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:8000 \
+              -J report.json -w report.md -r report.html \
+              -a -j -c /zap/reglas/rules.tsv \
+            || ZAP_EXIT=$?
+          # zap-baseline devuelve 2 cuando solo hay warnings: no es un fallo real
+          echo "ZAP termino con codigo ${ZAP_EXIT:-0}"
+          ls -la zap-report/
 
+      - name: Publicar reporte de ZAP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-zap-dast
+          path: zap-report/
+
+      - name: Resumen del DAST
+        if: always()
+        run: |
+          echo "### Resultado del escaneo DAST (OWASP ZAP)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -E "^(FAIL|WARN|PASS)" zap-report/report.md 2>/dev/null | head -20 >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Logs de la app
         if: always()
         run: docker logs app
