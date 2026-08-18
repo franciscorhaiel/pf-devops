@@ -1,0 +1,20 @@
+=== Escalado del HPA - 2026-08-17T23:24:56Z ===
+23:24:56  pf-cloud-api   Deployment/pf-cloud-api   cpu: 5%/70%, memory: 81%/80%   2     10    2     12m
+23:25:06  pf-cloud-api   Deployment/pf-cloud-api   cpu: 5%/70%, memory: 82%/80%   2     10    2     12m
+23:25:17  pf-cloud-api   Deployment/pf-cloud-api   cpu: 5%/70%, memory: 82%/80%   2     10    2     12m
+23:25:27  pf-cloud-api   Deployment/pf-cloud-api   cpu: 159%/70%, memory: 82%/80%   2     10    2     12m
+23:25:37  pf-cloud-api   Deployment/pf-cloud-api   cpu: 159%/70%, memory: 82%/80%   2     10    2     12m
+23:25:48  pf-cloud-api   Deployment/pf-cloud-api   cpu: 5%/70%, memory: 89%/80%   2     10    4     13m
+23:25:58  pf-cloud-api   Deployment/pf-cloud-api   cpu: 5%/70%, memory: 89%/80%   2     10    4     13m
+23:26:09  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     13m
+23:26:19  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     13m
+23:26:30  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     13m
+23:26:40  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     13m
+23:26:51  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     14m
+23:27:01  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     14m
+23:27:12  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     14m
+23:27:22  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     14m
+23:27:33  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     14m
+23:27:43  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     14m
+23:27:54  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     15m
+23:28:04  pf-cloud-api   Deployment/pf-cloud-api   cpu: 4%/70%, memory: 87%/80%   2     10    4     15m
