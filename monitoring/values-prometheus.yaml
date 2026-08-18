@@ -1,0 +1,53 @@
+# Valores de kube-prometheus-stack acotados para correr en una notebook.
+# FinOps: retencion y recursos limitados a lo minimo util.
+
+prometheus:
+  prometheusSpec:
+    retention: 6h                    # historial corto = menos disco
+    retentionSize: 2GB
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+      limits:   { cpu: 500m, memory: 800Mi }
+    # Descubre ServiceMonitors de todos los namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+grafana:
+  adminPassword: ""                  # se inyecta por secreto, nunca hardcodeado
+  admin:
+    existingSecret: grafana-admin
+    userKey: usuario
+    passwordKey: password
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+  persistence:
+    enabled: false                   # dashboards por provisioning, no por disco
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: pf-cloud
+          folder: PF Cloud
+          type: file
+          options:
+            path: /var/lib/grafana/dashboards/pf-cloud
+  dashboardsConfigMaps:
+    pf-cloud: grafana-dashboard-pf-cloud
+
+# Componentes que no necesitamos en local: apagarlos ahorra RAM y CPU.
+alertmanager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+nodeExporter:
+  enabled: true
+kubeStateMetrics:
+  enabled: true

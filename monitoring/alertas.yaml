@@ -1,0 +1,57 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pf-cloud-api
+  namespace: monitoring
+  labels:
+    release: monitoreo
+spec:
+  groups:
+    - name: pf-cloud-api.disponibilidad
+      rules:
+        - alert: AppCaida
+          expr: up{job="pf-cloud-api"} == 0
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: "La API no responde al scrapeo de Prometheus"
+
+        - alert: TasaDeErrores5xx
+          expr: |
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m])) > 0.05
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "Mas del 5% de las respuestas son 5xx"
+
+        - alert: LatenciaAlta
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+            ) > 1
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "El percentil 95 de latencia supera 1 segundo"
+
+    - name: pf-cloud-api.finops
+      rules:
+        # Alerta de sobreaprovisionamiento: pagamos por CPU que no usamos.
+        - alert: RecursosSobreaprovisionados
+          expr: |
+            sum(rate(container_cpu_usage_seconds_total{namespace="pf-app"}[30m]))
+            / sum(kube_pod_container_resource_requests{namespace="pf-app",resource="cpu"}) < 0.15
+          for: 30m
+          labels: { severity: info }
+          annotations:
+            summary: "Uso de CPU bajo el 15% de lo solicitado: bajar requests"
+
+        - alert: HPAEnElMaximo
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace="pf-app"}
+            >= kube_horizontalpodautoscaler_spec_max_replicas{namespace="pf-app"}
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: "El HPA esta en su techo: revisar maxReplicas o performance"
