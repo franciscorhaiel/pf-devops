@@ -1,0 +1,27 @@
+# Todo lo que NO debe entrar al contexto de build.
+# Reduce el tamano del contexto y evita filtrar secretos.
+.git
+.github
+.gitignore
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+.venv
+venv
+terraform/
+k8s/
+monitoring/
+finops/
+scripts/
+docs/
+*.md
+*.log
+.env
+.env.*
+*.tfstate
+*.tfstate.*
+.terraform/
+kubeconfig*
+*.pem
+*.key
