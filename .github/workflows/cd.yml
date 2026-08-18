@@ -1,0 +1,141 @@
+name: CD - Terraform y despliegue en Kubernetes
+
+on:
+  workflow_run:
+    workflows: ["CI - Build, Test y Seguridad"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag_imagen:
+        description: "Tag de la imagen a desplegar"
+        required: true
+        default: "latest"
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.10.3"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/pf-cloud-api
+
+jobs:
+  # =========================================================================
+  # 1. Terraform: validacion y plan
+  # =========================================================================
+  terraform:
+    name: Terraform plan
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Formato
+        run: terraform fmt -check -recursive
+
+      - name: Init
+        run: terraform init -backend=false
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan
+        run: terraform plan -no-color -out=tfplan
+        continue-on-error: true
+
+      - name: Guardar el plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: terraform/tfplan
+
+  # =========================================================================
+  # 2. Despliegue en un cluster efimero kind y validacion end-to-end.
+  #    En produccion este job apuntaria al cluster real con un kubeconfig
+  #    guardado como secreto.
+  # =========================================================================
+  deploy:
+    name: Deploy en Kubernetes
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Crear cluster kind
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: pf-cloud
+          config: scripts/kind-config.yaml
+
+      - name: Instalar ingress-nginx
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=300s
+
+      - name: Instalar metrics-server (requisito del HPA)
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          kubectl patch -n kube-system deployment metrics-server --type=json \
+            -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+          kubectl wait --namespace kube-system \
+            --for=condition=available deployment/metrics-server --timeout=300s
+
+      - name: Construir y cargar la imagen en kind
+        run: |
+          TAG="${{ github.event.inputs.tag_imagen || github.sha }}"
+          docker build --target runtime -t pf-cloud-api:$TAG .
+          kind load docker-image pf-cloud-api:$TAG --name pf-cloud
+          echo "TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Aplicar manifiestos
+        run: |
+          cd k8s
+          kustomize edit set image ghcr.io/franciscorhaiel/pf-cloud-api=pf-cloud-api:${{ env.TAG }}
+          kubectl apply -k .
+
+      - name: Esperar el rollout
+        run: |
+          kubectl -n pf-app rollout status deployment/pf-cloud-api --timeout=300s
+
+      - name: Evidencia del estado del cluster
+        run: |
+          echo "## Estado del despliegue" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          kubectl -n pf-app get pods,svc,ingress,hpa -o wide >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Smoke test contra el Service
+        run: |
+          kubectl -n pf-app port-forward svc/pf-cloud-api 8080:80 &
+          sleep 5
+          curl -sf http://localhost:8080/healthz | tee /dev/stderr | grep -q '"ok"'
+          curl -sf http://localhost:8080/readyz  | grep -q '"ready"'
+          curl -sf http://localhost:8080/metrics | grep -q 'http_request'
+
+      - name: Verificar que el HPA lee metricas
+        run: |
+          for i in $(seq 1 12); do
+            OUT=$(kubectl -n pf-app get hpa pf-cloud-api --no-headers)
+            echo "$OUT"
+            echo "$OUT" | grep -q '<unknown>' || break
+            sleep 15
+          done
+          kubectl -n pf-app describe hpa pf-cloud-api
+
+      - name: Diagnostico ante fallo
+        if: failure()
+        run: |
+          kubectl -n pf-app describe pods
+          kubectl -n pf-app logs -l app.kubernetes.io/name=pf-cloud-api --tail=100 --all-containers
+          kubectl get events -A --sort-by=.lastTimestamp | tail -40
